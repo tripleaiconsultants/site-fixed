@@ -160,6 +160,7 @@
 
   /**
    * Animation on scroll function and init
+   * Note: AOS init is delayed when page transitions are active
    */
   function aosInit() {
     AOS.init({
@@ -169,7 +170,16 @@
       mirror: false
     });
   }
-  window.addEventListener('load', aosInit);
+
+  // Check if we're coming from a page transition
+  window.addEventListener('load', function() {
+    if (!sessionStorage.getItem('pageTransition')) {
+      // No transition, init AOS immediately
+      aosInit();
+    }
+    // If there IS a transition, AOS will be initialized after transition completes
+    // (handled in the page transition system below)
+  });
 
   /**
    * Initiate glightbox
@@ -396,148 +406,138 @@
 })();
 
 /**
- * Page Transition - Zoom Out/In Effect
- * Intercepts navigation and creates smooth zoom transition between pages
+ * Page Transition System - Smooth Physical Transitions
+ * 3 types: zoom, slide, flip - each page gets a unique one
  */
 (function() {
   'use strict';
 
-  // Create the transition overlay element
-  function createTransitionOverlay() {
-    let overlay = document.querySelector('.page-transition-overlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.className = 'page-transition-overlay';
-      document.body.appendChild(overlay);
-    }
-    return overlay;
+  // Extract just the filename from a URL path
+  function getFileName(url) {
+    // Remove query strings and hashes
+    let clean = url.split('?')[0].split('#')[0];
+    // Remove leading ./ or ../
+    clean = clean.replace(/^\.\.\//, '').replace(/^\.\//, '');
+    // Get just the filename
+    const parts = clean.split('/');
+    return parts[parts.length - 1];
   }
 
-  // Perform zoom out transition then navigate
-  function transitionToPage(url) {
-    const overlay = createTransitionOverlay();
-    const mainContent = document.querySelector('.main');
-    const header = document.querySelector('.header');
-    
-    // Mark body as transitioning
+  // Get transition type based on destination filename
+  function getTransitionType(url) {
+    const filename = getFileName(url);
+
+    // Each page type gets a DIFFERENT transition for variety
+    switch(filename) {
+      // Service pages - each gets a unique transition
+      case 'motor.html':
+        return 'slide';    // Motor: slides in like a car
+      case 'health.html':
+        return 'flip';     // Health: flip like medical records
+      case 'home.html':
+        return 'zoom';     // Home insurance: zoom in
+      case 'business.html':
+        return 'slide';    // Business: professional slide
+
+      // Going back to main homepage - use flip (like closing a folder/going back)
+      case 'main.html':
+        return 'flip';
+
+      // Default
+      default:
+        return 'slide';
+    }
+  }
+
+  // Perform transition then navigate
+  function transitionToPage(url, transitionType) {
+    // Prevent double-clicks
+    if (document.body.classList.contains('transitioning-out')) return;
+
     document.body.classList.add('transitioning-out');
-    
-    // Start zoom out animation on page content
-    if (mainContent) {
-      mainContent.classList.add('page-transition-zoom-out');
-    }
-    if (header) {
-      header.classList.add('page-transition-zoom-out');
-    }
-    
-    // Expand the overlay (background color)
+    document.body.setAttribute('data-transition', transitionType);
+
+    // Store for incoming page
+    sessionStorage.setItem('pageTransition', transitionType);
+
+    // Navigate after the exit animation plays
     setTimeout(() => {
-      overlay.classList.add('zoom-out-active');
-    }, 100);
-    
-    // Navigate to new page after animation completes
-    setTimeout(() => {
-      // Set flag in sessionStorage to trigger zoom-in on next page
-      sessionStorage.setItem('pageTransition', 'true');
       window.location.href = url;
-    }, 800);
+    }, 280);
   }
 
-  // Handle zoom in animation on page load
+  // Handle incoming transition on page load
   function handlePageLoad() {
-    const shouldTransition = sessionStorage.getItem('pageTransition');
-    
-    if (shouldTransition === 'true') {
-      // Clear the flag
+    const transitionType = sessionStorage.getItem('pageTransition');
+
+    if (transitionType) {
       sessionStorage.removeItem('pageTransition');
-      
-      const overlay = createTransitionOverlay();
-      const mainContent = document.querySelector('.main');
-      const header = document.querySelector('.header');
-      
-      // Start with overlay fully visible
-      overlay.style.opacity = '1';
-      overlay.style.transform = 'scale(1)';
-      
-      // Hide content initially
-      if (mainContent) {
-        mainContent.style.opacity = '0';
-        mainContent.style.transform = 'scale(0.8)';
-      }
-      if (header) {
-        header.style.opacity = '0';
-        header.style.transform = 'scale(0.8)';
-      }
-      
-      // Start zoom in animation
-      requestAnimationFrame(() => {
-        // Shrink overlay away
-        overlay.classList.add('zoom-in-active');
-        
-        // Zoom in page content
-        setTimeout(() => {
-          if (mainContent) {
-            mainContent.classList.add('page-transition-zoom-in');
-            mainContent.style.opacity = '';
-            mainContent.style.transform = '';
-          }
-          if (header) {
-            header.classList.add('page-transition-zoom-in');
-            header.style.opacity = '';
-            header.style.transform = '';
-          }
-        }, 100);
-      });
-      
-      // Clean up after animation and trigger AOS animations
+
+      // Hide all AOS elements initially during transition
+      document.body.classList.add('aos-delay-init');
+
+      // Add class for incoming animation
+      document.body.classList.add('transitioning-in');
+      document.body.setAttribute('data-transition', transitionType);
+
+      // Clean up after animation and THEN start page animations
       setTimeout(() => {
-        overlay.classList.remove('zoom-in-active');
-        overlay.style.opacity = '';
-        overlay.style.transform = '';
-        if (mainContent) {
-          mainContent.classList.remove('page-transition-zoom-in');
-        }
-        if (header) {
-          header.classList.remove('page-transition-zoom-in');
-        }
-        
-        // Trigger AOS refresh to play animations
+        document.body.classList.remove('transitioning-in');
+        document.body.removeAttribute('data-transition');
+        document.body.classList.remove('aos-delay-init');
+
+        // Initialize AOS AFTER transition completes
         if (typeof AOS !== 'undefined') {
-          AOS.refresh();
+          AOS.init({
+            duration: 600,
+            easing: 'ease-in-out',
+            once: true,
+            mirror: false
+          });
         }
-      }, 800);
+      }, 450);
     }
   }
 
   // Intercept navigation clicks
   function interceptNavigation() {
-    // Get all links that navigate to other HTML pages
-    const links = document.querySelectorAll('a[href$=".html"]');
-    
-    links.forEach(link => {
-      // Skip links that are already handled or external
-      if (link.hasAttribute('data-transition-disabled')) {
+    document.addEventListener('click', function(e) {
+      // Match links containing .html (including those with hash fragments like main.html#hero)
+      const link = e.target.closest('a[href*=".html"]');
+      if (!link) return;
+
+      const href = link.getAttribute('href');
+      if (!href ||
+          href.startsWith('#') ||
+          href.startsWith('http://') ||
+          href.startsWith('https://') ||
+          link.hasAttribute('target') ||
+          link.hasAttribute('data-transition-disabled')) {
         return;
       }
-      
-      link.addEventListener('click', function(e) {
-        const href = this.getAttribute('href');
-        
-        // Only intercept if it's a navigation to another page (not hash links or external)
-        if (href && 
-            !href.startsWith('#') && 
-            !href.startsWith('http://') && 
-            !href.startsWith('https://') &&
-            !this.hasAttribute('target')) {
-          
-          e.preventDefault();
-          transitionToPage(href);
-        }
-      });
+
+      // Check if this is a same-page anchor link (e.g., on main.html clicking main.html#about)
+      const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+      const targetPage = getFileName(href);
+
+      // If navigating to same page with just a hash change, let it scroll normally
+      if (currentPage === targetPage && href.includes('#')) {
+        return; // Don't intercept, let normal anchor behavior work
+      }
+
+      e.preventDefault();
+
+      // Get transition type - check data attribute first, then use mapping
+      let transitionType = link.getAttribute('data-transition');
+      if (!transitionType) {
+        transitionType = getTransitionType(href);
+      }
+
+      transitionToPage(href, transitionType);
     });
   }
 
-  // Initialize on DOM ready
+  // Initialize
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
       handlePageLoad();

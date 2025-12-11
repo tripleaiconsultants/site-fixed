@@ -7,80 +7,156 @@
 */
 
 /*--------------------------------------------------------------
-# Page Transition Styles - Zoom Out/In Effect
+# Page Transitions - Smooth Physical Movements
+# 3 Types: Zoom, Slide (like cards), Flip (like book pages)
 --------------------------------------------------------------*/
 
-/* Transition overlay - positioned above everything */
-.page-transition-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: #ffffff;
-  z-index: 99999;
+/* Prevent scroll during transitions */
+html {
+  overflow-x: hidden;
+}
+
+body.transitioning-out,
+body.transitioning-in {
   pointer-events: none;
-  opacity: 0;
-  transform: scale(0);
-  transform-origin: center center;
-  transition: none;
+  overflow: hidden;
 }
 
-/* Dark mode transition color */
-body.dark-mode .page-transition-overlay {
-  background-color: #0a1929;
-}
-
-/* Zoom out animation - page content shrinks away */
-.page-transition-zoom-out {
-  animation: zoomOutPage 0.6s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards;
-}
-
-@keyframes zoomOutPage {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-}
-
-/* Overlay zoom in - background color expands to fill screen */
-.page-transition-overlay.zoom-out-active {
-  opacity: 1;
-  transform: scale(1);
-  transition: opacity 0.4s ease-out 0.3s, transform 0.5s cubic-bezier(0.55, 0.085, 0.68, 0.53) 0.2s;
-}
-
-/* Overlay zoom out - background color shrinks away */
-.page-transition-overlay.zoom-in-active {
-  opacity: 1;
-  transform: scale(0);
-  transition: opacity 0.4s ease-in, transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-/* Zoom in animation - page content appears */
-.page-transition-zoom-in {
-  animation: zoomInPage 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-}
-
-@keyframes zoomInPage {
-  0% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* Prevent page content from being visible during transition */
+/* GPU acceleration for smooth animations */
 body.transitioning-out .main,
-body.transitioning-out .header {
-  pointer-events: none;
+body.transitioning-out .header,
+body.transitioning-in .main,
+body.transitioning-in .header {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/*--------------------------------------------------------------
+# ZOOM Transition - Scale in/out with fade
+--------------------------------------------------------------*/
+
+/* Exiting: zoom out and fade */
+body.transitioning-out[data-transition="zoom"] .main,
+body.transitioning-out[data-transition="zoom"] .header {
+  animation: zoomOut 0.35s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes zoomOut {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+}
+
+/* Entering: zoom in from larger */
+body.transitioning-in[data-transition="zoom"] .main,
+body.transitioning-in[data-transition="zoom"] .header {
+  animation: zoomIn 0.4s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes zoomIn {
+  0% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/*--------------------------------------------------------------
+# SLIDE Transition - Like sliding cards left/right
+--------------------------------------------------------------*/
+
+/* Exiting: current page slides fully out to the left */
+body.transitioning-out[data-transition="slide"] .main,
+body.transitioning-out[data-transition="slide"] .header {
+  animation: slideOut 0.35s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes slideOut {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-100%);
+    opacity: 1;
+  }
+}
+
+/* Entering: new page slides in from the right */
+body.transitioning-in[data-transition="slide"] .main,
+body.transitioning-in[data-transition="slide"] .header {
+  animation: slideIn 0.4s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes slideIn {
+  0% {
+    transform: translateX(100%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/*--------------------------------------------------------------
+# FLIP Transition - Like turning a book page
+--------------------------------------------------------------*/
+
+/* Exiting: page flips away like turning a book page */
+body.transitioning-out[data-transition="flip"] .main,
+body.transitioning-out[data-transition="flip"] .header {
+  animation: flipOut 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
+  transform-style: preserve-3d;
+  transform-origin: left center;
+}
+
+@keyframes flipOut {
+  0% {
+    transform: perspective(2000px) rotateY(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: perspective(2000px) rotateY(-90deg);
+    opacity: 0;
+  }
+}
+
+/* Entering: new page flips in like the next book page */
+body.transitioning-in[data-transition="flip"] .main,
+body.transitioning-in[data-transition="flip"] .header {
+  animation: flipIn 0.45s cubic-bezier(0, 0, 0.2, 1) forwards;
+  transform-style: preserve-3d;
+  transform-origin: right center;
+}
+
+@keyframes flipIn {
+  0% {
+    transform: perspective(2000px) rotateY(90deg);
+    opacity: 0;
+  }
+  100% {
+    transform: perspective(2000px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+/*--------------------------------------------------------------
+# Delay AOS animations during page transitions
+--------------------------------------------------------------*/
+body.aos-delay-init [data-aos] {
+  opacity: 0 !important;
+  transform: none !important;
+  transition: none !important;
 }
 
 /*--------------------------------------------------------------
@@ -1592,6 +1668,18 @@ section,
   margin-bottom: 0;
 }
 
+/* About Video Styles */
+.about .about-video {
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  background: #000;
+}
+
+.about .about-video:focus {
+  outline: none;
+}
+
 /*--------------------------------------------------------------
 # Skills Section
 --------------------------------------------------------------*/
@@ -1709,6 +1797,13 @@ section,
     .services {
         grid-template-columns: 1fr;
     }
+}
+
+/* Service card link wrapper */
+.service-card-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
 }
 
 .service-card {
@@ -2778,6 +2873,7 @@ div#bp-web-widget-container {
 }
 
 .side-popup-widget .btn-popup-call,
+.side-popup-widget .btn-popup-whatsapp,
 .side-popup-widget .btn-popup-email {
   display: block;
   text-align: center;
@@ -2797,6 +2893,14 @@ div#bp-web-widget-container {
   background: color-mix(in srgb, var(--accent-color), transparent 25%);
 }
 
+.side-popup-widget .btn-popup-whatsapp {
+  background: #25D366;
+  color: #fff;
+}
+.side-popup-widget .btn-popup-whatsapp:hover {
+  background: #1da851;
+}
+
 .side-popup-widget .btn-popup-email {
   background: color-mix(in srgb, var(--default-color), transparent 90%);
   color: var(--accent-color);
@@ -2806,6 +2910,7 @@ div#bp-web-widget-container {
 }
 
 .side-popup-widget .btn-popup-call i,
+.side-popup-widget .btn-popup-whatsapp i,
 .side-popup-widget .btn-popup-email i {
   margin-right: 5px;
 }
@@ -3278,12 +3383,13 @@ body.dark-mode .header-mode-toggle .sun-icon {
   }
   
   .side-popup-widget .btn-popup-call,
+  .side-popup-widget .btn-popup-whatsapp,
   .side-popup-widget .btn-popup-email {
     padding: 8px !important;
     font-size: 13px !important;
     margin-bottom: 8px !important;
   }
-  
+
   .side-popup-widget .popup-open-btn {
     font-size: 12px !important;
     padding: 8px 10px !important;
@@ -3338,6 +3444,7 @@ body.dark-mode .header-mode-toggle .sun-icon {
   }
   
   .side-popup-widget .btn-popup-call,
+  .side-popup-widget .btn-popup-whatsapp,
   .side-popup-widget .btn-popup-email {
     padding: 7px !important;
     font-size: 12px !important;
