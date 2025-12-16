@@ -466,6 +466,25 @@
     }, 280);
   }
 
+  // Handle browser back/forward buttons - add smooth transition
+  window.addEventListener('pageshow', function(e) {
+    // persisted = true means page was loaded from browser cache (back/forward navigation)
+    if (e.persisted) {
+      // Page was loaded from back-forward cache, add incoming transition
+      const transitionType = 'slide';
+      sessionStorage.setItem('pageTransition', transitionType);
+
+      // Force a reload to trigger the transition animation
+      window.location.reload();
+    }
+  });
+
+  // Also handle popstate for browsers that don't use bfcache
+  window.addEventListener('popstate', function(e) {
+    // Set transition for back navigation
+    sessionStorage.setItem('pageTransition', 'slide');
+  });
+
   // Handle incoming transition on page load
   function handlePageLoad() {
     const transitionType = sessionStorage.getItem('pageTransition');
